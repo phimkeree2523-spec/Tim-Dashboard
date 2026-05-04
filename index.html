@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบติดตามพนักงาน</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2234;
+    --border: rgba(255,255,255,0.08);
+    --accent: #00d4aa;
+    --accent2: #3b82f6;
+    --accent3: #f59e0b;
+    --text: #f1f5f9;
+    --muted: #64748b;
+    --danger: #ef4444;
+    --success: #10b981;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,170,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,170,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; }
+
+  /* ===== HEADER ===== */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    background: rgba(17,24,39,0.9);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .logo-text {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+  .logo-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--success);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .live-dot {
+    width: 6px; height: 6px;
+    background: var(--success);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50% { opacity:0.5; transform:scale(0.8); }
+  }
+
+  .last-update {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* ===== CONFIG PANEL ===== */
+  .config-panel {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .config-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .config-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 7px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .config-input:focus { border-color: var(--accent); }
+  .config-input::placeholder { color: var(--muted); }
+  .url-input { flex: 1; min-width: 280px; }
+
+  .btn {
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: none;
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0e1a;
+  }
+  .btn-primary:hover { background: #00bfa0; transform: translateY(-1px); }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); }
+  .btn:active { transform: scale(0.98); }
+
+  /* ===== CONTROLS ===== */
+  .controls {
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .date-picker-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 12px;
+  }
+  .date-picker-wrap label {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  input[type="date"] {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.6);
+    cursor: pointer;
+  }
+
+  .date-nav {
+    display: flex;
+    gap: 4px;
+  }
+  .date-nav button {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .date-nav button:hover { border-color: var(--accent); background: rgba(0,212,170,0.1); }
+
+  .today-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    background: rgba(0,212,170,0.1);
+    border: 1px solid rgba(0,212,170,0.3);
+    color: var(--accent);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  .today-btn:hover { background: rgba(0,212,170,0.2); }
+
+  .spacer { flex: 1; }
+
+  .summary-strip {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .summary-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .summary-chip .num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .summary-chip .lbl { color: var(--muted); }
+
+  /* ===== MAIN GRID ===== */
+  main {
+    padding: 0 28px 28px;
+  }
+
+  /* Date display bar */
+  .date-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .date-display {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+  }
+  .date-th {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .total-badge {
+    background: rgba(0,212,170,0.1);
+    border: 1px solid rgba(0,212,170,0.2);
+    color: var(--accent);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* Site cards grid */
+  .sites-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .site-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: all 0.3s;
+    animation: cardIn 0.4s ease forwards;
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  @keyframes cardIn {
+    to { opacity:1; transform:translateY(0); }
+  }
+  .site-card:hover {
+    border-color: rgba(0,212,170,0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+
+  .site-header {
+    padding: 14px 16px 10px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .site-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .site-count-badge {
+    background: var(--accent);
+    color: #0a0e1a;
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+
+  .site-body { padding: 10px 0; }
+
+  .employee-row {
+    display: flex;
+    align-items: center;
+    padding: 5px 16px;
+    gap: 10px;
+    transition: background 0.15s;
+    border-radius: 6px;
+    margin: 0 4px;
+  }
+  .employee-row:hover { background: var(--surface2); }
+
+  .emp-avatar {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .emp-name {
+    font-size: 13px;
+    color: var(--text);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .emp-group {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .emp-ot {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+  .emp-ot.has-ot {
+    background: rgba(245,158,11,0.15);
+    color: var(--accent3);
+  }
+  .emp-ot.no-ot {
+    background: var(--surface2);
+    color: var(--muted);
+  }
+
+  .site-footer {
+    padding: 8px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .group-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .group-tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    border: 1px solid;
+  }
+  .ot-summary {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .ot-summary span {
+    color: var(--accent3);
+    font-weight: 500;
+  }
+
+  /* ===== EMPTY STATE ===== */
+  .empty-state {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-title { font-size: 16px; color: var(--text); margin-bottom: 6px; }
+  .empty-sub { font-size: 13px; line-height: 1.6; }
+
+  /* ===== LOADING ===== */
+  .loading-overlay {
+    display: none;
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 48px;
+    color: var(--muted);
+  }
+  .loading-overlay.show { display: block; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ===== ERROR ===== */
+  .error-banner {
+    display: none;
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #fca5a5;
+    align-items: center;
+    gap: 8px;
+  }
+  .error-banner.show { display: flex; }
+
+  /* ===== HOW TO PANEL ===== */
+  .howto {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+  .howto h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--accent); }
+  .howto ol { padding-left: 18px; }
+  .howto li { font-size: 13px; color: var(--muted); line-height: 1.8; }
+  .howto code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    background: var(--surface2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--accent);
+  }
+  .howto .note {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(59,130,246,0.08);
+    border-left: 3px solid var(--accent2);
+    border-radius: 0 8px 8px 0;
+    font-size: 12px;
+    color: #93c5fd;
+    line-height: 1.6;
+  }
+
+  /* ===== DEMO DATA NOTICE ===== */
+  .demo-notice {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    color: var(--accent3);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* ===== COLOR PALETTE FOR SITES ===== */
+  .c0 { background:rgba(0,212,170,0.15); color:#00d4aa; border-color:rgba(0,212,170,0.3); }
+  .c1 { background:rgba(59,130,246,0.15); color:#60a5fa; border-color:rgba(59,130,246,0.3); }
+  .c2 { background:rgba(245,158,11,0.15); color:#fbbf24; border-color:rgba(245,158,11,0.3); }
+  .c3 { background:rgba(168,85,247,0.15); color:#c084fc; border-color:rgba(168,85,247,0.3); }
+  .c4 { background:rgba(239,68,68,0.15); color:#f87171; border-color:rgba(239,68,68,0.3); }
+  .c5 { background:rgba(236,72,153,0.15); color:#f472b6; border-color:rgba(236,72,153,0.3); }
+  .c6 { background:rgba(20,184,166,0.15); color:#2dd4bf; border-color:rgba(20,184,166,0.3); }
+  .c7 { background:rgba(99,102,241,0.15); color:#818cf8; border-color:rgba(99,102,241,0.3); }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    header, .config-panel, .controls, main { padding-left: 14px; padding-right: 14px; }
+    .sites-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ===== ICON BUTTONS ===== */
+  .icon-btn {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .icon-btn.spinning { animation: spin 0.6s linear infinite; }
+
+  /* ===== SEARCH BAR ===== */
+  .search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 5px 12px;
+    transition: border-color 0.2s;
+    min-width: 200px;
+  }
+  .search-wrap:focus-within { border-color: var(--accent); }
+  .search-icon { font-size: 13px; color: var(--muted); flex-shrink: 0; }
+  .search-input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-size: 13px;
+    outline: none;
+    flex: 1;
+    min-width: 120px;
+  }
+  .search-input::placeholder { color: var(--muted); }
+  .search-clear {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .search-clear:hover { color: var(--danger); }
+
+  /* ===== PRINT STYLES ===== */
+  @media print {
+    header, .config-panel, .controls { display: none !important; }
+    body { background: white; color: #1a1a1a; }
+    .site-card { break-inside: avoid; border: 1px solid #ddd; background: white; }
+    .employee-row:hover { background: transparent; }
+    .site-name, .emp-name, .date-display { color: #1a1a1a !important; }
+    .howto, .error-banner, .demo-notice { display: none !important; }
+    main { padding: 16px; }
+    .sites-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <div class="logo-text">WorkSite Dashboard</div>
+      <div class="logo-sub">ระบบติดตามพนักงานรายวัน</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="icon-btn" onclick="manualRefresh()" title="รีเฟรชข้อมูล" id="refreshBtn">↺</button>
+    <button class="icon-btn" onclick="printDashboard()" title="พิมพ์/Export PDF">⎙</button>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      LIVE
+    </div>
+    <div class="last-update" id="lastUpdate">—</div>
+  </div>
+</header>
+
+<!-- CONFIG PANEL -->
+<div class="config-panel">
+  <span class="config-label">Google Sheets URL</span>
+  <input type="text" class="config-input url-input" id="sheetUrl"
+    placeholder="วาง URL ของ Google Sheets ที่นี่..."
+    value="">
+  <input type="text" class="config-input" id="sheetName"
+    style="width:160px"
+    placeholder="ชื่อ Sheet (เช่น รายวัน)"
+    value="รายวัน">
+  <button class="btn btn-primary" onclick="connectSheet()">🔗 เชื่อมต่อ</button>
+  <button class="btn btn-secondary" onclick="loadDemo()">▶ ทดลองดูตัวอย่าง</button>
+</div>
+
+<!-- CONTROLS -->
+<div class="controls">
+  <div class="date-nav">
+    <button onclick="changeDate(-1)" title="วันก่อน">‹</button>
+    <button onclick="changeDate(1)" title="วันถัดไป">›</button>
+  </div>
+  <div class="date-picker-wrap">
+    <label>📅 วันที่</label>
+    <input type="date" id="datePicker" onchange="onDateChange()">
+  </div>
+  <button class="today-btn" onclick="goToday()">วันนี้</button>
+
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" class="search-input" id="searchInput" placeholder="ค้นหาชื่อ / ไซต์..." oninput="onSearch()">
+    <button class="search-clear" id="searchClear" onclick="clearSearch()" style="display:none">✕</button>
+  </div>
+
+  <div class="spacer"></div>
+
+  <div class="summary-strip">
+    <div class="summary-chip">
+      <span class="num" id="totalSites">0</span>
+      <span class="lbl">ไซต์งาน</span>
+    </div>
+    <div class="summary-chip">
+      <span class="num" id="totalPeople">0</span>
+      <span class="lbl">คน</span>
+    </div>
+    <div class="summary-chip">
+      <span class="num" id="totalOT">0</span>
+      <span class="lbl">โอที</span>
+    </div>
+    <span id="demoNotice" class="demo-notice" style="display:none">⚙ Demo</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main>
+  <!-- How-to -->
+  <div class="howto" id="howtoPanel">
+    <h3>⚡ วิธีเชื่อมต่อ Google Sheets ของคุณ</h3>
+    <ol>
+      <li>เปิด Google Sheets → คลิก <strong>File → Share → Publish to web</strong></li>
+      <li>เลือก Sheet และรูปแบบเป็น <code>CSV</code> → กด <strong>Publish</strong></li>
+      <li>คัดลอก URL ที่ได้ → วางในช่อง <strong>Google Sheets URL</strong> ด้านบน</li>
+      <li>กรอก <strong>ชื่อ Sheet</strong> ให้ตรงกับของคุณ แล้วกด <strong>เชื่อมต่อ</strong></li>
+    </ol>
+    <div class="note">
+      📋 รูปแบบข้อมูลใน Sheet ต้องมีคอลัมน์: <code>วันที่</code> <code>ชื่อสกุล</code> <code>โอที</code> <code>กลุ่ม</code> <code>สถานที่</code><br>
+      ตามลำดับที่เห็นในไฟล์ของคุณ (คอลัมน์ A, C, D, E, F) — กด <strong>ทดลองดูตัวอย่าง</strong> เพื่อดูการทำงาน
+    </div>
+  </div>
+
+  <!-- Date bar -->
+  <div class="date-bar">
+    <div class="date-display" id="dateDisplay">—</div>
+    <div class="date-th" id="dateTh"></div>
+    <div class="total-badge" id="totalBadge" style="display:none"></div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-banner" id="errorBanner">
+    <span>⚠</span>
+    <span id="errorMsg"></span>
+  </div>
+
+  <!-- Grid -->
+  <div class="sites-grid" id="sitesGrid">
+    <div class="empty-state">
+      <div class="empty-icon">⚡</div>
+      <div class="empty-title">รอการเชื่อมต่อ</div>
+      <div class="empty-sub">กรอก URL Google Sheets แล้วกดเชื่อมต่อ<br>หรือกด "ทดลองดูตัวอย่าง" เพื่อดูการทำงาน</div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ===== STATE =====
+let allData = [];
+let isDemo = false;
+let refreshInterval = null;
+let searchQuery = '';
+let currentCsvUrl = '';  // remember for refresh
+
+// Color palette for sites
+const SITE_COLORS = ['c0','c1','c2','c3','c4','c5','c6','c7'];
+const siteColorMap = {};
+let colorIdx = 0;
+
+function getSiteColor(site) {
+  if (!siteColorMap[site]) {
+    siteColorMap[site] = SITE_COLORS[colorIdx % SITE_COLORS.length];
+    colorIdx++;
+  }
+  return siteColorMap[site];
+}
+
+// Avatar colors
+const AVT_COLORS = [
+  ['#00d4aa','#0a2a22'],['#3b82f6','#0a1a2e'],['#f59e0b','#2a1a00'],
+  ['#a855f7','#1e0a2e'],['#ef4444','#2e0a0a'],['#ec4899','#2e0a1e'],
+];
+function getAvtColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % AVT_COLORS.length;
+  return AVT_COLORS[h];
+}
+function initials(name) {
+  const p = name.trim().split(' ');
+  if (p.length >= 2) return p[0][0] + p[1][0];
+  return name.slice(0, 2);
+}
+
+// ===== DATE UTILS =====
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function formatDateTH(dateStr) {
+  const [y,m,d] = dateStr.split('-');
+  const months = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const days = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์'];
+  const dt = new Date(dateStr);
+  return {
+    full: `${parseInt(d)} ${months[parseInt(m)]} ${parseInt(y)+543}`,
+    day: days[dt.getDay()]
+  };
+}
+
+function changeDate(delta) {
+  const dp = document.getElementById('datePicker');
+  const d = new Date(dp.value || todayStr());
+  d.setDate(d.getDate() + delta);
+  dp.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  renderForDate(dp.value);
+}
+
+function goToday() {
+  document.getElementById('datePicker').value = todayStr();
+  renderForDate(todayStr());
+}
+
+function onDateChange() {
+  renderForDate(document.getElementById('datePicker').value);
+}
+
+// ===== PARSE DATA =====
+function parseCSV(csv) {
+  const lines = csv.trim().split('\n');
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g,''));
+    if (cols.length < 5) continue;
+    // col A=วันที่, B=มูล(skip), C=ชื่อสกุล, D=โอที, E=กลุ่ม, F=สถานที่
+    const raw = {
+      date: cols[0] || '',
+      name: cols[2] || cols[1] || '',
+      ot: cols[3] || '0',
+      group: cols[4] || '',
+      site: cols[5] || cols[4] || '',
+    };
+    if (raw.name) rows.push(raw);
+  }
+  return rows;
+}
+
+// Normalize date (รองรับ dd/mm/yyyy, yyyy-mm-dd, d m y)
+function normalizeDate(raw) {
+  if (!raw) return '';
+  raw = String(raw).trim();
+  // yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  // d/m/yyyy or dd/mm/yyyy
+  const s = raw.split(/[\/\-\.]/);
+  if (s.length === 3) {
+    if (s[0].length <= 2 && s[2].length === 4) {
+      return `${s[2]}-${s[1].padStart(2,'0')}-${s[0].padStart(2,'0')}`;
+    }
+    if (s[0].length === 4) {
+      return `${s[0]}-${s[1].padStart(2,'0')}-${s[2].padStart(2,'0')}`;
+    }
+  }
+  // number (serial) - skip
+  return raw;
+}
+
+// ===== RENDER =====
+function renderForDate(dateStr) {
+  const grid = document.getElementById('sitesGrid');
+  const thInfo = formatDateTH(dateStr);
+  document.getElementById('dateDisplay').textContent = thInfo.full;
+  document.getElementById('dateTh').textContent = 'วัน' + thInfo.day;
+
+  // Filter by date
+  let rows = allData.filter(r => normalizeDate(r.date) === dateStr);
+
+  // Apply search filter
+  if (searchQuery) {
+    rows = rows.filter(r =>
+      r.name.toLowerCase().includes(searchQuery) ||
+      (r.site || '').toLowerCase().includes(searchQuery) ||
+      (r.group || '').toLowerCase().includes(searchQuery)
+    );
+  }
+
+  // Group by site
+  const sites = {};
+  rows.forEach(r => {
+    const site = r.site || 'ไม่ระบุสถานที่';
+    if (!sites[site]) sites[site] = [];
+    sites[site].push(r);
+  });
+
+  const siteNames = Object.keys(sites).sort();
+
+  // Update summary
+  document.getElementById('totalSites').textContent = siteNames.length;
+  document.getElementById('totalPeople').textContent = rows.length;
+  const totalOT = rows.filter(r => parseFloat(r.ot) > 0).length;
+  document.getElementById('totalOT').textContent = totalOT;
+
+  const badge = document.getElementById('totalBadge');
+  if (rows.length > 0) {
+    badge.textContent = `${rows.length} คน · ${siteNames.length} ไซต์`;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+
+  // Render grid
+  if (rows.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">ไม่มีข้อมูลวันนี้</div>
+        <div class="empty-sub">ไม่พบรายชื่อสำหรับวันที่ ${thInfo.full}<br>ลองเลือกวันที่อื่น</div>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = '';
+  siteNames.forEach((site, si) => {
+    const employees = sites[site];
+    const color = getSiteColor(site);
+    const otCount = employees.filter(e => parseFloat(e.ot) > 0).length;
+
+    // Unique groups
+    const groups = [...new Set(employees.map(e => e.group).filter(Boolean))];
+
+    const card = document.createElement('div');
+    card.className = 'site-card';
+    card.style.animationDelay = `${si * 60}ms`;
+
+    const empRows = employees.map(emp => {
+      const [bg, fg] = getAvtColor(emp.name);
+      const hasOt = parseFloat(emp.ot) > 0;
+      return `
+        <div class="employee-row">
+          <div class="emp-avatar" style="background:${bg};color:${fg}">${initials(emp.name)}</div>
+          <div class="emp-name">${emp.name}</div>
+          ${emp.group ? `<div class="emp-group">${emp.group}</div>` : ''}
+          <div class="emp-ot ${hasOt ? 'has-ot' : 'no-ot'}">OT${hasOt ? ':'+emp.ot : ':0'}</div>
+        </div>`;
+    }).join('');
+
+    const groupTags = groups.map(g => `<span class="group-tag ${color}">${g}</span>`).join('');
+
+    card.innerHTML = `
+      <div class="site-header">
+        <div class="site-name">📍 ${site}</div>
+        <div class="site-count-badge">${employees.length} คน</div>
+      </div>
+      <div class="site-body">${empRows}</div>
+      <div class="site-footer">
+        <div class="group-tags">${groupTags}</div>
+        ${otCount > 0 ? `<div class="ot-summary">โอที <span>${otCount}</span> คน</div>` : ''}
+      </div>`;
+
+    grid.appendChild(card);
+  });
+
+  // Update timestamp
+  const now = new Date();
+  document.getElementById('lastUpdate').textContent =
+    `อัปเดต ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+}
+
+// ===== SEARCH =====
+function onSearch() {
+  searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+  document.getElementById('searchClear').style.display = searchQuery ? '' : 'none';
+  renderForDate(document.getElementById('datePicker').value || todayStr());
+}
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  searchQuery = '';
+  document.getElementById('searchClear').style.display = 'none';
+  renderForDate(document.getElementById('datePicker').value || todayStr());
+}
+
+// ===== MANUAL REFRESH =====
+async function manualRefresh() {
+  if (!currentCsvUrl) { showError('ยังไม่ได้เชื่อมต่อ Google Sheets'); return; }
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  try {
+    const res = await fetch(currentCsvUrl);
+    if (!res.ok) throw new Error('รีเฟรชไม่สำเร็จ');
+    const csv = await res.text();
+    allData = parseCSV(csv);
+    renderForDate(document.getElementById('datePicker').value || todayStr());
+  } catch(e) {
+    showError(e.message);
+  } finally {
+    btn.classList.remove('spinning');
+  }
+}
+
+// ===== PRINT =====
+function printDashboard() {
+  window.print();
+}
+
+// ===== CONNECT SHEET =====
+async function connectSheet() {
+  const url = document.getElementById('sheetUrl').value.trim();
+  if (!url) { showError('กรุณากรอก URL ของ Google Sheets'); return; }
+
+  // Extract sheet ID
+  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (!match) { showError('URL ไม่ถูกต้อง กรุณาคัดลอก URL จาก Google Sheets'); return; }
+
+  const sheetId = match[1];
+  const sheetName = encodeURIComponent(document.getElementById('sheetName').value || 'Sheet1');
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${sheetName}`;
+
+  showLoading(true);
+  hideError();
+
+  try {
+    const res = await fetch(csvUrl);
+    if (!res.ok) throw new Error('ไม่สามารถดึงข้อมูลได้ กรุณาตรวจสอบว่า Sheet ถูก Publish แล้ว');
+    const csv = await res.text();
+    allData = parseCSV(csv);
+    isDemo = false;
+    currentCsvUrl = csvUrl;
+
+    // Save to localStorage
+    try {
+      localStorage.setItem('wsd_sheetUrl', document.getElementById('sheetUrl').value.trim());
+      localStorage.setItem('wsd_sheetName', document.getElementById('sheetName').value || 'Sheet1');
+    } catch(e) {}
+
+    document.getElementById('demoNotice').style.display = 'none';
+    document.getElementById('howtoPanel').style.display = 'none';
+    showLoading(false);
+    renderForDate(document.getElementById('datePicker').value || todayStr());
+
+    // Auto-refresh every 30 seconds
+    if (refreshInterval) clearInterval(refreshInterval);
+    refreshInterval = setInterval(async () => {
+      try {
+        const r = await fetch(csvUrl);
+        const c = await r.text();
+        const newData = parseCSV(c);
+        if (JSON.stringify(newData) !== JSON.stringify(allData)) {
+          allData = newData;
+          renderForDate(document.getElementById('datePicker').value || todayStr());
+        }
+      } catch(e) {}
+    }, 30000);
+
+  } catch(err) {
+    showLoading(false);
+    showError(err.message);
+  }
+}
+
+// ===== DEMO DATA =====
+function loadDemo() {
+  const today = todayStr();
+  const [y,m,d] = today.split('-');
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`;
+
+  allData = [
+    // วันนี้
+    {date:today, name:'มนูล ตะวงศา', ot:'2', group:'มนูล', site:'โยโกเร'},
+    {date:today, name:'สาธิต คะสาราช', ot:'2', group:'มนูล', site:'โยโกเร'},
+    {date:today, name:'ทัพณ์พล บุญตา', ot:'2', group:'มนูล', site:'โยโกเร'},
+    {date:today, name:'ปราณี ตะวงศา', ot:'2', group:'มนูล', site:'โยโกเร'},
+    {date:today, name:'ติวกร โชคชัย', ot:'2', group:'มนูล', site:'โยโกเร'},
+    {date:today, name:'พิรพงษ์ ช่วยขวัญ', ot:'0', group:'มนูล', site:'โยโกเร'},
+    {date:today, name:'ประทวน นาดำ', ot:'0', group:'ทีม B', site:'ไซต์ SCG บางซื่อ'},
+    {date:today, name:'วิชัย แสงทอง', ot:'2', group:'ทีม B', site:'ไซต์ SCG บางซื่อ'},
+    {date:today, name:'สมศักดิ์ ใจกล้า', ot:'0', group:'ทีม B', site:'ไซต์ SCG บางซื่อ'},
+    {date:today, name:'นภา รักดี', ot:'4', group:'ทีม C', site:'โรงงาน AMATA ชลบุรี'},
+    {date:today, name:'กิตติ มีโชค', ot:'4', group:'ทีม C', site:'โรงงาน AMATA ชลบุรี'},
+    {date:today, name:'เอกชัย ทนงศักดิ์', ot:'0', group:'ทีม C', site:'โรงงาน AMATA ชลบุรี'},
+    {date:today, name:'สุรชัย บุญมาก', ot:'0', group:'ทีม D', site:'นิคม WHA ระยอง'},
+    {date:today, name:'มานพ ศรีสุข', ot:'2', group:'ทีม D', site:'นิคม WHA ระยอง'},
+    // เมื่อวาน
+    {date:yStr, name:'มนูล ตะวงศา', ot:'0', group:'มนูล', site:'โยโกเร'},
+    {date:yStr, name:'สาธิต คะสาราช', ot:'0', group:'มนูล', site:'โยโกเร'},
+    {date:yStr, name:'ประทวน นาดำ', ot:'2', group:'ทีม B', site:'ไซต์ SCG บางซื่อ'},
+    {date:yStr, name:'นภา รักดี', ot:'2', group:'ทีม C', site:'โรงงาน AMATA ชลบุรี'},
+  ];
+
+  isDemo = true;
+  document.getElementById('demoNotice').style.display = '';
+  document.getElementById('howtoPanel').style.display = 'none';
+  hideError();
+  renderForDate(document.getElementById('datePicker').value || todayStr());
+}
+
+// ===== UI HELPERS =====
+function showLoading(show) {
+  const grid = document.getElementById('sitesGrid');
+  if (show) {
+    grid.innerHTML = `<div class="loading-overlay show"><div class="spinner"></div><div>กำลังดึงข้อมูล...</div></div>`;
+  }
+}
+function showError(msg) {
+  const b = document.getElementById('errorBanner');
+  document.getElementById('errorMsg').textContent = msg;
+  b.classList.add('show');
+}
+function hideError() {
+  document.getElementById('errorBanner').classList.remove('show');
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  const dp = document.getElementById('datePicker');
+  dp.value = todayStr();
+  const thInfo = formatDateTH(todayStr());
+  document.getElementById('dateDisplay').textContent = thInfo.full;
+  document.getElementById('dateTh').textContent = 'วัน' + thInfo.day;
+
+  // Restore saved URL and sheet name from localStorage
+  try {
+    const savedUrl = localStorage.getItem('wsd_sheetUrl');
+    const savedSheet = localStorage.getItem('wsd_sheetName');
+    if (savedUrl) {
+      document.getElementById('sheetUrl').value = savedUrl;
+      document.getElementById('sheetName').value = savedSheet || 'รายวัน';
+      // Auto-connect on load
+      connectSheet();
+    }
+  } catch(e) {}
+});
+</script>
+</body>
+</html>
