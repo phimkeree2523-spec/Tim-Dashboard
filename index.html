@@ -621,14 +621,10 @@
 
 <!-- CONFIG PANEL -->
 <div class="config-panel">
-  <span class="config-label">Google Sheets URL</span>
+  <span class="config-label">Apps Script URL</span>
   <input type="text" class="config-input url-input" id="sheetUrl"
-    placeholder="วาง URL ของ Google Sheets ที่นี่..."
-    value="">
-  <input type="text" class="config-input" id="sheetName"
-    style="width:160px"
-    placeholder="ชื่อ Sheet (เช่น รายวัน)"
-    value="รายวัน">
+    placeholder="วาง Google Apps Script URL ที่นี่..."
+    value="https://script.google.com/macros/s/AKfycbyfsR-8ZJvEvCcmt-YB1knSPLn9-hNdJLf2hHFeyPf7gkTFKew94a6OqP7-xkiccqk7/exec">
   <button class="btn btn-primary" onclick="connectSheet()">🔗 เชื่อมต่อ</button>
   <button class="btn btn-secondary" onclick="loadDemo()">▶ ทดลองดูตัวอย่าง</button>
 </div>
@@ -674,16 +670,15 @@
 <main>
   <!-- How-to -->
   <div class="howto" id="howtoPanel">
-    <h3>⚡ วิธีเชื่อมต่อ Google Sheets ของคุณ</h3>
+    <h3>⚡ ระบบเชื่อมต่อผ่าน Google Apps Script</h3>
     <ol>
-      <li>เปิด Google Sheets → คลิก <strong>File → Share → Publish to web</strong></li>
-      <li>ช่องซ้ายเลือก <strong>ชื่อ Sheet</strong> → ช่องขวาเลือก <strong>CSV</strong> → กด <strong>Publish</strong></li>
-      <li>คัดลอก <strong>URL ที่ได้จากกล่อง</strong> (ที่มี output=csv) → วางในช่อง URL ด้านบน <em>โดยตรง</em></li>
-      <li>ไม่ต้องกรอกชื่อ Sheet เพราะ URL มีข้อมูลครบแล้ว → กด <strong>เชื่อมต่อ</strong></li>
+      <li>Apps Script URL ถูกตั้งค่าไว้แล้วในช่องด้านบน</li>
+      <li>กด <strong>🔗 เชื่อมต่อ</strong> เพื่อดึงข้อมูล</li>
+      <li>ระบบจะรีเฟรชอัตโนมัติทุก 30 วินาที</li>
     </ol>
     <div class="note">
-      💡 <strong>หรือ</strong> วาง URL หน้า Spreadsheet ปกติ + กรอกชื่อ Sheet ในช่องขวา<br>
-      📋 รูปแบบคอลัมน์: <code>A=วันที่</code> <code>C=ชื่อสกุล</code> <code>D=โอที</code> <code>E=กลุ่ม</code> <code>F=สถานที่</code>
+      📋 รูปแบบคอลัมน์ใน Sheet: <code>วันที่</code> <code>ชื่อสกุล</code> <code>โอที</code> <code>กลุ่ม</code> <code>สถานที่</code><br>
+      กด <strong>ทดลองดูตัวอย่าง</strong> เพื่อดูการทำงานก่อนเชื่อมต่อจริง
     </div>
   </div>
 
@@ -937,12 +932,12 @@ function clearSearch() {
 
 // ===== MANUAL REFRESH =====
 async function manualRefresh() {
-  if (!currentCsvUrl) { showError('ยังไม่ได้เชื่อมต่อ Google Sheets'); return; }
+  if (!currentCsvUrl) { showError('ยังไม่ได้เชื่อมต่อ'); return; }
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('spinning');
   try {
-    const csv = await fetchCsv(currentCsvUrl);
-    allData = parseCSV(csv);
+    const json = await fetchFromAppsScript(currentCsvUrl);
+    allData = parseAppsScriptData(json);
     renderForDate(document.getElementById('datePicker').value || todayStr());
   } catch(e) {
     showError(e.message);
@@ -956,66 +951,53 @@ function printDashboard() {
   window.print();
 }
 
-// ===== FETCH WITH FALLBACK (tries direct, then CORS proxies) =====
-async function fetchCsv(csvUrl) {
-  // 1. Try direct
-  try {
-    const r = await fetch(csvUrl, { mode: 'cors' });
-    if (r.ok) { const t = await r.text(); if (t.trim()) return t; }
-  } catch(e) {}
+// ===== FETCH FROM APPS SCRIPT =====
+async function fetchFromAppsScript(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  if (!Array.isArray(json)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง');
+  return json;
+}
 
-  // 2. Try allorigins proxy
-  try {
-    const proxy1 = `https://api.allorigins.win/raw?url=${encodeURIComponent(csvUrl)}`;
-    const r = await fetch(proxy1);
-    if (r.ok) { const t = await r.text(); if (t.trim()) return t; }
-  } catch(e) {}
-
-  // 3. Try corsproxy.io
-  try {
-    const proxy2 = `https://corsproxy.io/?${encodeURIComponent(csvUrl)}`;
-    const r = await fetch(proxy2);
-    if (r.ok) { const t = await r.text(); if (t.trim()) return t; }
-  } catch(e) {}
-
-  throw new Error('ดึงข้อมูลไม่ได้ — กรุณาตรวจสอบว่า Sheet ถูก Publish เป็น CSV แล้ว และ Sheet name ถูกต้อง');
+function parseAppsScriptData(json) {
+  // json = [{วันที่:..., ชื่อสกุล:..., โอที:..., กลุ่ม:..., สถานที่:...}, ...]
+  return json.map(row => {
+    // หา key ที่ตรงแบบ flexible
+    const keys = Object.keys(row);
+    const findVal = (...names) => {
+      for (const n of names) {
+        const k = keys.find(k => k.trim() === n);
+        if (k !== undefined) return String(row[k] ?? '').trim();
+      }
+      return '';
+    };
+    return {
+      date: findVal('วันที่', 'date', 'Date', 'วันที่ทำงาน'),
+      name: findVal('ชื่อสกุล', 'ชื่อ-สกุล', 'ชื่อ', 'name', 'Name'),
+      ot:   findVal('โอที', 'OT', 'ot', 'โอที(ชม)'),
+      group: findVal('กลุ่ม', 'group', 'Group', 'ทีม'),
+      site:  findVal('สถานที่', 'site', 'Site', 'ไซต์', 'สถานที่ทำงาน'),
+    };
+  }).filter(r => r.name);
 }
 
 // ===== CONNECT SHEET =====
 async function connectSheet() {
   const url = document.getElementById('sheetUrl').value.trim();
-  if (!url) { showError('กรุณากรอก URL ของ Google Sheets'); return; }
-
-  // รองรับทั้ง URL ปกติ และ URL ที่ได้จาก Publish to web โดยตรง
-  let csvUrl = '';
-  const sheetNameInput = document.getElementById('sheetName').value.trim() || 'Sheet1';
-
-  // ถ้า URL มี output=csv อยู่แล้ว (วางจาก Publish to web โดยตรง)
-  if (url.includes('output=csv') || url.includes('tqx=out:csv')) {
-    csvUrl = url;
-  } else {
-    // สร้างจาก spreadsheet URL
-    const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-    if (!match) { showError('URL ไม่ถูกต้อง กรุณาคัดลอก URL จาก Google Sheets'); return; }
-    const sheetId = match[1];
-    const sheetName = encodeURIComponent(sheetNameInput);
-    csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${sheetName}`;
-  }
+  if (!url) { showError('กรุณากรอก Apps Script URL'); return; }
 
   showLoading(true);
   hideError();
 
   try {
-    const csv = await fetchCsv(csvUrl);
-    allData = parseCSV(csv);
+    const json = await fetchFromAppsScript(url);
+    allData = parseAppsScriptData(json);
     isDemo = false;
-    currentCsvUrl = csvUrl;
+    currentCsvUrl = url;
 
     // Save to localStorage
-    try {
-      localStorage.setItem('wsd_sheetUrl', url);
-      localStorage.setItem('wsd_sheetName', sheetNameInput);
-    } catch(e) {}
+    try { localStorage.setItem('wsd_scriptUrl', url); } catch(e) {}
 
     document.getElementById('demoNotice').style.display = 'none';
     document.getElementById('howtoPanel').style.display = 'none';
@@ -1026,8 +1008,8 @@ async function connectSheet() {
     if (refreshInterval) clearInterval(refreshInterval);
     refreshInterval = setInterval(async () => {
       try {
-        const c = await fetchCsv(csvUrl);
-        const newData = parseCSV(c);
+        const j = await fetchFromAppsScript(url);
+        const newData = parseAppsScriptData(j);
         if (JSON.stringify(newData) !== JSON.stringify(allData)) {
           allData = newData;
           renderForDate(document.getElementById('datePicker').value || todayStr());
@@ -1037,7 +1019,7 @@ async function connectSheet() {
 
   } catch(err) {
     showLoading(false);
-    showError(err.message);
+    showError('เชื่อมต่อไม่ได้: ' + err.message);
   }
 }
 
@@ -1103,19 +1085,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('dateDisplay').textContent = thInfo.full;
   document.getElementById('dateTh').textContent = 'วัน' + thInfo.day;
 
-  // Restore saved URL and sheet name from localStorage
+  // Restore saved URL
   try {
-    const savedUrl = localStorage.getItem('wsd_sheetUrl');
-    const savedSheet = localStorage.getItem('wsd_sheetName');
-    if (savedUrl) {
-      document.getElementById('sheetUrl').value = savedUrl;
-      document.getElementById('sheetName').value = savedSheet || 'รายวัน';
-      // Auto-connect on load
-      connectSheet();
-    }
+    const saved = localStorage.getItem('wsd_scriptUrl');
+    if (saved) document.getElementById('sheetUrl').value = saved;
   } catch(e) {}
+
+  // Auto-connect if URL is filled
+  const urlVal = document.getElementById('sheetUrl').value.trim();
+  if (urlVal) connectSheet();
 });
 </script>
 </body>
 </html>
-
