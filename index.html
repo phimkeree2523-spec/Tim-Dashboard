@@ -677,13 +677,13 @@
     <h3>⚡ วิธีเชื่อมต่อ Google Sheets ของคุณ</h3>
     <ol>
       <li>เปิด Google Sheets → คลิก <strong>File → Share → Publish to web</strong></li>
-      <li>เลือก Sheet และรูปแบบเป็น <code>CSV</code> → กด <strong>Publish</strong></li>
-      <li>คัดลอก URL ที่ได้ → วางในช่อง <strong>Google Sheets URL</strong> ด้านบน</li>
-      <li>กรอก <strong>ชื่อ Sheet</strong> ให้ตรงกับของคุณ แล้วกด <strong>เชื่อมต่อ</strong></li>
+      <li>ช่องซ้ายเลือก <strong>ชื่อ Sheet</strong> → ช่องขวาเลือก <strong>CSV</strong> → กด <strong>Publish</strong></li>
+      <li>คัดลอก <strong>URL ที่ได้จากกล่อง</strong> (ที่มี output=csv) → วางในช่อง URL ด้านบน <em>โดยตรง</em></li>
+      <li>ไม่ต้องกรอกชื่อ Sheet เพราะ URL มีข้อมูลครบแล้ว → กด <strong>เชื่อมต่อ</strong></li>
     </ol>
     <div class="note">
-      📋 รูปแบบข้อมูลใน Sheet ต้องมีคอลัมน์: <code>วันที่</code> <code>ชื่อสกุล</code> <code>โอที</code> <code>กลุ่ม</code> <code>สถานที่</code><br>
-      ตามลำดับที่เห็นในไฟล์ของคุณ (คอลัมน์ A, C, D, E, F) — กด <strong>ทดลองดูตัวอย่าง</strong> เพื่อดูการทำงาน
+      💡 <strong>หรือ</strong> วาง URL หน้า Spreadsheet ปกติ + กรอกชื่อ Sheet ในช่องขวา<br>
+      📋 รูปแบบคอลัมน์: <code>A=วันที่</code> <code>C=ชื่อสกุล</code> <code>D=โอที</code> <code>E=กลุ่ม</code> <code>F=สถานที่</code>
     </div>
   </div>
 
@@ -941,9 +941,7 @@ async function manualRefresh() {
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('spinning');
   try {
-    const res = await fetch(currentCsvUrl);
-    if (!res.ok) throw new Error('รีเฟรชไม่สำเร็จ');
-    const csv = await res.text();
+    const csv = await fetchCsv(currentCsvUrl);
     allData = parseCSV(csv);
     renderForDate(document.getElementById('datePicker').value || todayStr());
   } catch(e) {
@@ -958,34 +956,65 @@ function printDashboard() {
   window.print();
 }
 
+// ===== FETCH WITH FALLBACK (tries direct, then CORS proxies) =====
+async function fetchCsv(csvUrl) {
+  // 1. Try direct
+  try {
+    const r = await fetch(csvUrl, { mode: 'cors' });
+    if (r.ok) { const t = await r.text(); if (t.trim()) return t; }
+  } catch(e) {}
+
+  // 2. Try allorigins proxy
+  try {
+    const proxy1 = `https://api.allorigins.win/raw?url=${encodeURIComponent(csvUrl)}`;
+    const r = await fetch(proxy1);
+    if (r.ok) { const t = await r.text(); if (t.trim()) return t; }
+  } catch(e) {}
+
+  // 3. Try corsproxy.io
+  try {
+    const proxy2 = `https://corsproxy.io/?${encodeURIComponent(csvUrl)}`;
+    const r = await fetch(proxy2);
+    if (r.ok) { const t = await r.text(); if (t.trim()) return t; }
+  } catch(e) {}
+
+  throw new Error('ดึงข้อมูลไม่ได้ — กรุณาตรวจสอบว่า Sheet ถูก Publish เป็น CSV แล้ว และ Sheet name ถูกต้อง');
+}
+
 // ===== CONNECT SHEET =====
 async function connectSheet() {
   const url = document.getElementById('sheetUrl').value.trim();
   if (!url) { showError('กรุณากรอก URL ของ Google Sheets'); return; }
 
-  // Extract sheet ID
-  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (!match) { showError('URL ไม่ถูกต้อง กรุณาคัดลอก URL จาก Google Sheets'); return; }
+  // รองรับทั้ง URL ปกติ และ URL ที่ได้จาก Publish to web โดยตรง
+  let csvUrl = '';
+  const sheetNameInput = document.getElementById('sheetName').value.trim() || 'Sheet1';
 
-  const sheetId = match[1];
-  const sheetName = encodeURIComponent(document.getElementById('sheetName').value || 'Sheet1');
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${sheetName}`;
+  // ถ้า URL มี output=csv อยู่แล้ว (วางจาก Publish to web โดยตรง)
+  if (url.includes('output=csv') || url.includes('tqx=out:csv')) {
+    csvUrl = url;
+  } else {
+    // สร้างจาก spreadsheet URL
+    const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if (!match) { showError('URL ไม่ถูกต้อง กรุณาคัดลอก URL จาก Google Sheets'); return; }
+    const sheetId = match[1];
+    const sheetName = encodeURIComponent(sheetNameInput);
+    csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${sheetName}`;
+  }
 
   showLoading(true);
   hideError();
 
   try {
-    const res = await fetch(csvUrl);
-    if (!res.ok) throw new Error('ไม่สามารถดึงข้อมูลได้ กรุณาตรวจสอบว่า Sheet ถูก Publish แล้ว');
-    const csv = await res.text();
+    const csv = await fetchCsv(csvUrl);
     allData = parseCSV(csv);
     isDemo = false;
     currentCsvUrl = csvUrl;
 
     // Save to localStorage
     try {
-      localStorage.setItem('wsd_sheetUrl', document.getElementById('sheetUrl').value.trim());
-      localStorage.setItem('wsd_sheetName', document.getElementById('sheetName').value || 'Sheet1');
+      localStorage.setItem('wsd_sheetUrl', url);
+      localStorage.setItem('wsd_sheetName', sheetNameInput);
     } catch(e) {}
 
     document.getElementById('demoNotice').style.display = 'none';
@@ -997,8 +1026,7 @@ async function connectSheet() {
     if (refreshInterval) clearInterval(refreshInterval);
     refreshInterval = setInterval(async () => {
       try {
-        const r = await fetch(csvUrl);
-        const c = await r.text();
+        const c = await fetchCsv(csvUrl);
         const newData = parseCSV(c);
         if (JSON.stringify(newData) !== JSON.stringify(allData)) {
           allData = newData;
